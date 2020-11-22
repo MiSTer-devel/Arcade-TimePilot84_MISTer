@@ -1,0 +1,33 @@
+#Version
+v1
+
+#Original Filename
+#TP84 Light LPF.txt
+
+#Filter Description
+#18.2KHz 1st-order LPF for TP84 core matched to PCB set at the same volume as the core
+
+#Sampling Frequency
+7056000
+
+#Base gain
+0.02234662141229708590
+
+#gain scale for X0
+1.7
+
+#gain scale for X1
+0
+
+#gain scale for X2
+0
+
+#gain scale for Y0
+-0.98392329394798772046
+
+#gain scale for Y1
+0
+
+#gain scale for Y2
+0
+

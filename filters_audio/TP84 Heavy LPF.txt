@@ -1,0 +1,33 @@
+#Version
+v1
+
+#Original Filename
+#TP84 Heavy LPF.txt
+
+#Filter Description
+#4.8KHz 1st-order LPF for TP84 core matched to PCB set at full volume
+
+#Sampling Frequency
+7056000
+
+#Base gain
+0.00592858207842135096
+
+#gain scale for X0
+1.7
+
+#gain scale for X1
+0
+
+#gain scale for X2
+0
+
+#gain scale for Y0
+-0.99573483303710697001
+
+#gain scale for Y1
+0
+
+#gain scale for Y2
+0
+
