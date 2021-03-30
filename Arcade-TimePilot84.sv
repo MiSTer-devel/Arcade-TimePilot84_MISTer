@@ -1,10 +1,10 @@
 //============================================================================
 // 
 //  Port to MiSTer.
-//  Copyright (C) 2020 Sorgelig
+//  Copyright (C) 2021 Sorgelig
 //
 //  Time Pilot '84 for MiSTer
-//  Copyright (C) 2020 Ace, Enforcer, Ash Evans (aka ElectronAsh/OzOnE),
+//  Copyright (C) 2020, 2021 Ace, Enforcer, Ash Evans (aka ElectronAsh/OzOnE),
 //  Enforcer, loloC2C and Kitrinx (aka Rysha)
 //
 //  Permission is hereby granted, free of charge, to any person obtaining a
@@ -47,8 +47,9 @@ module emu
 	output        CE_PIXEL,
 
 	//Video aspect ratio for HDMI. Most retro systems have ratio 4:3.
-	output [11:0] VIDEO_ARX,
-	output [11:0] VIDEO_ARY,
+	//if VIDEO_ARX[12] or VIDEO_ARY[12] is set then [11:0] contains scaled size instead of aspect ratio.
+	output [12:0] VIDEO_ARX,
+	output [12:0] VIDEO_ARY,
 
 	output  [7:0] VGA_R,
 	output  [7:0] VGA_G,
@@ -60,13 +61,17 @@ module emu
 	output [1:0]  VGA_SL,
 	output        VGA_SCALER, // Force VGA scaler
 
-	// Use framebuffer from DDRAM
+	input  [11:0] HDMI_WIDTH,
+	input  [11:0] HDMI_HEIGHT,
+
+`ifdef MISTER_FB
+	// Use framebuffer in DDRAM (USE_FB=1 in qsf)
 	// FB_FORMAT:
 	//    [2:0] : 011=8bpp(palette) 100=16bpp 101=24bpp 110=32bpp
 	//    [3]   : 0=16bits 565 1=16bits 1555
 	//    [4]   : 0=RGB  1=BGR (for 16/24/32 modes)
 	//
-	// FB_STRIDE either 0 (rounded to 256 bytes) or multiple of 16 bytes.
+	// FB_STRIDE either 0 (rounded to 256 bytes) or multiple of pixel size (in bytes)
 	output        FB_EN,
 	output  [4:0] FB_FORMAT,
 	output [11:0] FB_WIDTH,
@@ -77,6 +82,7 @@ module emu
 	input         FB_LL,
 	output        FB_FORCE_BLANK,
 
+`ifdef MISTER_FB_PALETTE
 	// Palette control for 8bit modes.
 	// Ignored for other video modes.
 	output        FB_PAL_CLK,
@@ -84,6 +90,8 @@ module emu
 	output [23:0] FB_PAL_DOUT,
 	input  [23:0] FB_PAL_DIN,
 	output        FB_PAL_WR,
+`endif
+`endif
 
 	output        LED_USER,  // 1 - ON, 0 - OFF.
 
@@ -93,10 +101,15 @@ module emu
 	output  [1:0] LED_POWER,
 	output  [1:0] LED_DISK,
 
+	// I/O board button press simulation (active high)
+	// b[1]: user button
+	// b[0]: osd button
+	output  [1:0] BUTTONS,
+
 	input         CLK_AUDIO, // 24.576 MHz
 	output [15:0] AUDIO_L,
 	output [15:0] AUDIO_R,
-	output        AUDIO_S,    // 1 - signed audio samples, 0 - unsigned
+	output        AUDIO_S,   // 1 - signed audio samples, 0 - unsigned
 	output  [1:0] AUDIO_MIX, // 0 - no mix, 1 - 25%, 2 - 50%, 3 - 100% (mono)
 
 	//ADC
@@ -135,6 +148,20 @@ module emu
 	output        SDRAM_nRAS,
 	output        SDRAM_nWE,
 
+`ifdef MISTER_DUAL_SDRAM
+	//Secondary SDRAM
+	//Set all output SDRAM_* signals to Z ASAP if SDRAM2_EN is 0
+	input         SDRAM2_EN,
+	output        SDRAM2_CLK,
+	output [12:0] SDRAM2_A,
+	output  [1:0] SDRAM2_BA,
+	inout  [15:0] SDRAM2_DQ,
+	output        SDRAM2_nCS,
+	output        SDRAM2_nCAS,
+	output        SDRAM2_nRAS,
+	output        SDRAM2_nWE,
+`endif
+
 	input         UART_CTS,
 	output        UART_RTS,
 	input         UART_RXD,
@@ -160,17 +187,18 @@ assign {SD_SCK, SD_MOSI, SD_CS} = 'Z;
 assign {SDRAM_DQ, SDRAM_A, SDRAM_BA, SDRAM_CLK, SDRAM_CKE, SDRAM_DQML, SDRAM_DQMH, SDRAM_nWE, SDRAM_nCAS, SDRAM_nRAS, SDRAM_nCS} = 'Z;
 
 assign VGA_F1 = 0;
-assign VGA_SCALER = status[11];
+assign VGA_SCALER = 0;
 
-wire [15:0] audio;
+wire signed [15:0] audio;
 assign AUDIO_L = audio;
 assign AUDIO_R = audio;
 assign AUDIO_S = 1;
 assign AUDIO_MIX = 0;
 
-assign LED_USER  = ioctl_download;
 assign LED_DISK  = 0;
 assign LED_POWER = 0;
+assign LED_USER  = ioctl_download;
+assign BUTTONS = 0;
 
 ///////////////////////////////////////////////////
 
@@ -185,9 +213,11 @@ parameter CONF_STR = {
 	"ODE,Aspect Ratio,Original,Full screen,[ARC1],[ARC2];",
 	"OC,Orientation,Vert,Horz;",
 	"OFH,Scandoubler Fx,None,HQ2x,CRT 25%,CRT 50%,CRT 75%;",
-	"OB,Force VGA Scaler,Off,On;",
 	"-;",
 	"DIP;",
+	"-;",
+	"O36,H Center,0,-1,-2,-3,-4,-5,-6,-7,+7,+6,+5,+4,+3,+2,+1;",
+	"O7A,V Center,0,-1,-2,-3,-4,-5,-6,-7,-8,-9,-10,-11,-12;",
 	"-;",
 	"R0,Reset;",
 	"J1,Shot,Missile,Start P1,Coin,Start P2;",
@@ -241,7 +271,6 @@ hps_io #(.STRLEN($size(CONF_STR)>>3)) hps_io
 ////////////////////   CLOCKS   ///////////////////
 
 wire CLK_49M;
-wire CLK_14M;
 wire locked;
 
 pll pll
@@ -249,7 +278,6 @@ pll pll
 	.refclk(CLK_50M),
 	.rst(0),
 	.outclk_0(CLK_49M),
-	.outclk_1(CLK_14M),
 	.locked(locked)
 );
 
@@ -331,13 +359,7 @@ wire hblank, vblank;
 wire hs, vs;
 wire [3:0] r,g,b;
 
-reg ce_pix;
-always @(posedge CLK_49M) begin
-	reg [2:0] div;
-	
-	div <= div + 1'd1;
-	ce_pix <= !div;
-end
+wire ce_pix;
 
 wire rotate_ccw = 0;
 wire no_rotate = status[12] | direct_video;
@@ -364,7 +386,6 @@ TimePilot84 TP84_inst
 	.reset(~reset),                                        // input reset
 
 	.clk_49m(CLK_49M),                                     // input clk_49m
-	.clk_14m(CLK_14M),                                     // input clk_14m
 	
 	.coin({~m_coin2, ~m_coin1}),                           // input [1:0] coin
 	
@@ -381,10 +402,14 @@ TimePilot84 TP84_inst
 	
 	.is_set3(is_set3[0]),
 	
+	.h_center(status[6:3]),                                // Screen centering
+	.v_center(status[10:7]),
+	
 	.video_hsync(hs),                                      // output video_hsync
 	.video_vsync(vs),                                      // output video_vsync
 	.video_vblank(vblank),                                 // output video_vblank
 	.video_hblank(hblank),                                 // output video_hblank
+	.ce_pix(ce_pix),                                       // output ce_pix
 	
 	.video_r(r),                                           // output [3:0] video_r
 	.video_g(g),                                           // output [3:0] video_g

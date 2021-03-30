@@ -3,7 +3,7 @@
 //  SystemVerilog implementation of the Konami 083 custom chip, a custom
 //  shift register used on many early Konami arcade PCBs for handling graphics
 //  ROMs
-//  Copyright (C) 2020 Ace & ElectronAsh
+//  Copyright (C) 2020, 2021 Ace & ElectronAsh
 //
 //  Permission is hereby granted, free of charge, to any person obtaining a
 //  copy of this software and associated documentation files (the "Software"),
@@ -61,6 +61,7 @@ GND     |_|14         15|_| NC
 module k083
 (
 	input        CK,
+	input        CEN, //Set to 1 if using this code to replace a real 083
 	input        FLIP,
 	input        LOAD,
 	input  [7:0] DB0i, DB1i,
@@ -73,21 +74,23 @@ reg [7:0] pixel_D1_l, pixel_D1_r;
 
 //Latch and shift pixel data
 always_ff @(posedge CK) begin
-	if(LOAD) begin
-		pixel_D0_l <= DB0i;
-		pixel_D1_l <= DB1i;
-		pixel_D0_r <= DB0i;
-		pixel_D1_r <= DB1i;
-	end
-	else begin
-		pixel_D0_l[3:0] <= {pixel_D0_l[2:0], 1'b0};
-		pixel_D0_l[7:4] <= {pixel_D0_l[6:4], 1'b0};
-		pixel_D1_l[3:0] <= {pixel_D1_l[2:0], 1'b0};
-		pixel_D1_l[7:4] <= {pixel_D1_l[6:4], 1'b0};
-		pixel_D0_r[3:0] <= {1'b0, pixel_D0_r[3:1]};
-		pixel_D0_r[7:4] <= {1'b0, pixel_D0_r[7:5]};
-		pixel_D1_r[3:0] <= {1'b0, pixel_D1_r[3:1]};
-		pixel_D1_r[7:4] <= {1'b0, pixel_D1_r[7:5]};
+	if(CEN) begin
+		if(LOAD) begin
+			pixel_D0_l <= DB0i;
+			pixel_D1_l <= DB1i;
+			pixel_D0_r <= DB0i;
+			pixel_D1_r <= DB1i;
+		end
+		else begin
+			pixel_D0_l[3:0] <= {pixel_D0_l[2:0], 1'b0};
+			pixel_D0_l[7:4] <= {pixel_D0_l[6:4], 1'b0};
+			pixel_D1_l[3:0] <= {pixel_D1_l[2:0], 1'b0};
+			pixel_D1_l[7:4] <= {pixel_D1_l[6:4], 1'b0};
+			pixel_D0_r[3:0] <= {1'b0, pixel_D0_r[3:1]};
+			pixel_D0_r[7:4] <= {1'b0, pixel_D0_r[7:5]};
+			pixel_D1_r[3:0] <= {1'b0, pixel_D1_r[3:1]};
+			pixel_D1_r[7:4] <= {1'b0, pixel_D1_r[7:5]};
+		end
 	end
 end
 

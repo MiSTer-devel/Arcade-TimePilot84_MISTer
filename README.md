@@ -2,7 +2,7 @@
 An FPGA implementation of Time Pilot '84 by Ace, ElectronAsh, Enforcer, loloC2C and Kitrinx
 
 ## Features
-- Modelling done with a mix of timing-accurate abstracted logic and chip-level logic modelling
+- Timing-accurate logic model made to match the original as closely as possible
 - Keyboard and joystick controls
 - CPU09 CPU by John E. Kent with modifications by B. Cuzeau
 - T80s CPU by Daniel Wallner with fixes by MikeJ, Sorgelig, and others

@@ -2,8 +2,7 @@
 // 
 //  SystemVerilog implementation of the Konami 502 custom chip, used for
 //  generating sprites on a number of '80s Konami arcade PCBs
-//
-//  Copyright (C) 2020 Ace
+//  Copyright (C) 2020, 2021 Ace
 //
 //  Permission is hereby granted, free of charge, to any person obtaining a
 //  copy of this software and associated documentation files (the "Software"),
@@ -65,6 +64,7 @@ module k502
 (
 	input        CK1,
 	input        CK2,
+	input        CEN, //Set to 1 if using this code to replace a real 502
 	input        LD0,
 	input        H2,
 	input        H256,
@@ -113,13 +113,15 @@ wire [3:0] lbuff_Dmux = OCLR ? SPLBi[3:0] : SPLBi[7:4];
 //Latch incoming line buffer RAM data on the falling edge of CK1
 reg [7:0] lbuff_lat;
 always_ff @(negedge CK1) begin
-	lbuff_lat <= SPLBi;
+	if(CEN)
+		lbuff_lat <= SPLBi;
 end
 
 //Latch multiplexed line buffer RAM data on the falling edge of CK2
 reg [3:0] lbuff_mux_lat;
 always_ff @(negedge CK2) begin
-	lbuff_mux_lat <= lbuff_Dmux;
+	if(CEN)
+		lbuff_mux_lat <= lbuff_Dmux;
 end
 
 //Assign sprite data output
@@ -133,14 +135,10 @@ wire sprite_pal_sel1 = (~lbuff_lat[3] & ~lbuff_lat[2] & ~lbuff_lat[1] & ~lbuff_l
 
 //Multiplex sprite data from line buffer with palette data (lower 4 bits)
 wire [7:0] sprite_pal_mux;
-assign sprite_pal_mux[3:0] = osel_reg[0] ?
-                             (sprite_pal_sel1 ? SPAL : SPLBi[3:0]):
-                             4'h0;
+assign sprite_pal_mux[3:0] = osel_reg[0] ? (sprite_pal_sel1 ? SPAL : SPLBi[3:0]) : 4'h0;
 
 //Multiplex sprite data from line buffer with palette data (upper 4 bits)
-assign sprite_pal_mux[7:4] = ~osel_reg[0] ?
-                             (sprite_pal_sel2 ? SPAL : SPLBi[7:4]):
-                             4'h0;
+assign sprite_pal_mux[7:4] = ~osel_reg[0] ? (sprite_pal_sel2 ? SPAL : SPLBi[7:4]) : 4'h0;
 
 //Output data to sprite line buffer
 assign SPLBo = sprite_pal_mux;

@@ -39,7 +39,7 @@
 // 0x18000 - 0x180FF = color_prom_1
 // 0x18100 - 0x181FF = color_prom_2
 // 0x18200 - 0x182FF = color_prom_3
-// 0x18300 - 0x183FF = char_lut_prom
+// 0x18300 - 0x183FF = tile_lut_prom
 // 0x18400 - 0x184FF = sprite_lut_prom
 
 module selector
@@ -47,13 +47,13 @@ module selector
 	input logic [24:0] ioctl_addr,
 	output logic ep1_cs, ep2_cs, ep3_cs, ep4_cs, ep5_cs, ep6_cs, ep7_cs, ep8_cs,
 	             ep9_cs, ep10_cs, ep11_cs, ep12_cs, cp1_cs, cp2_cs, cp3_cs,
-					 cl_cs, sl_cs
+                 tl_cs, sl_cs
 );
 
 	always_comb begin
 		{ep1_cs, ep2_cs, ep3_cs, ep4_cs, ep5_cs, ep6_cs, ep7_cs, ep8_cs,
-	   ep9_cs, ep10_cs, ep11_cs, ep12_cs, cp1_cs, cp2_cs, cp3_cs,
-		cl_cs, sl_cs} = 0;
+         ep9_cs, ep10_cs, ep11_cs, ep12_cs, cp1_cs, cp2_cs, cp3_cs,
+		 tl_cs, sl_cs} = 0;
 		if(ioctl_addr < 'h2000)
 			ep1_cs = 1; // 0x2000 13
 		else if(ioctl_addr < 'h4000)
@@ -85,7 +85,7 @@ module selector
 		else if(ioctl_addr < 'h18300)
 			cp3_cs = 1; // 0x100 8
 		else if(ioctl_addr < 'h18400)
-			cl_cs = 1; // 0x100 8
+			tl_cs = 1; // 0x100 8
 		else
 			sl_cs = 1; // 0x100 8
 	end
@@ -465,7 +465,7 @@ module color_prom_3
 	);
 endmodule
 
-module char_lut_prom
+module tile_lut_prom
 (
 	input logic        CLK,
 	input logic        CLK_DL,
@@ -476,7 +476,7 @@ module char_lut_prom
 	input logic        WR,
 	output logic [3:0] DATA
 );
-	dpram_dc #(.widthad_a(8)) char_lut_prom
+	dpram_dc #(.widthad_a(8)) tile_lut_prom
 	(
 		.clock_a(CLK),
 		.address_a(ADDR[7:0]),

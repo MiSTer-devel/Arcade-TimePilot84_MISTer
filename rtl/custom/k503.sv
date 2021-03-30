@@ -2,8 +2,7 @@
 // 
 //  SystemVerilog implementation of the Konami 503 custom chip, used by
 //  several Konami arcade PCBs for handling sprite data
-//
-//  Copyright (C) 2020 Ace
+//  Copyright (C) 2020, 2021 Ace
 //
 //  Permission is hereby granted, free of charge, to any person obtaining a
 //  copy of this software and associated documentation files (the "Software"),
@@ -26,29 +25,29 @@
 //============================================================================
 
 //Chip pinout:
-/*      _____________
+/*       _____________
        _|             |_
 OB(7) |_|1          40|_| VCC
        _|             |_
-OB(6) |_|2          39|_| V128
+OB(6) |_|2          39|_| VCNT(7)
        _|             |_
-OB(5) |_|3          38|_| V64
+OB(5) |_|3          38|_| VCNT(6)
        _|             |_
-OB(4) |_|4          37|_| V32
+OB(4) |_|4          37|_| VCNT(5)
        _|             |_
-OB(3) |_|5          36|_| V16
+OB(3) |_|5          36|_| VCNT(4)
        _|             |_
-OB(2) |_|6          35|_| V8
+OB(2) |_|6          35|_| VCNT(3)
        _|             |_
-OB(1) |_|7          34|_| V4
+OB(1) |_|7          34|_| VCNT(2)
        _|             |_
-OB(0) |_|8          33|_| V2
+OB(0) |_|8          33|_| VCNT(1)
        _|             |_
-R(5)  |_|9          32|_| V1
+R(5)  |_|9          32|_| VCNT(0)
        _|             |_
 R(4)  |_|10         31|_| NC
        _|             |_
-R(3)  |_|11         30|_| NE83
+R(3)  |_|11         30|_| OFLP
        _|             |_
 R(2)  |_|12         29|_| OCS
        _|             |_
@@ -72,51 +71,49 @@ GND   |_|20         21|_| NC
 
 module k503
 (
-	input  [7:0] OB,
-	input  [7:0] VCNT,
-	input        H4, H8,
-	input        LD,
-	output       OCS,
-	output       NE83,
-	output       ODAT, OCOL,
-	output [5:0] R
+	input  [7:0] OB,     //Sprite data input
+	input  [7:0] VCNT,   //Vertical counter input
+	input        H4, H8, //Horizontal counter bits 2 (H4) and 3 (H8)
+	input        LD,     //LD input (pulses low when bits 0 and 1 of the horizontal counter are both 1)
+	output       OCS,    //Sprite line buffer chip select output
+	output       OFLP,   //Sprite flip output
+	output       ODAT,   //Signal to latch upper bits of sprite address
+	output       OCOL,   //Signal to load addresses for sprite line buffer
+	output [5:0] R       //Lower 6 bits of sprite address
 );
 
-//Sum object bits with vertical counter
-wire [7:0] obj_sum = OB + VCNT;
+//Sum sprite bits with vertical counter
+wire [7:0] sprite_sum = OB + VCNT;
 
-//Control signal for object enable output
-wire obj_ctl = ~(&obj_sum[7:4]);
+//Sprite select signal
+wire sprite_sel = ~(&sprite_sum[7:4]);
 
-//Sprite control
-wire sprite_ctrl = ~(~LD & ~H4 & ~H8);
-reg ob6_lat, ob7_lat;
-always_ff @(posedge sprite_ctrl) begin
-	ob6_lat <= OB[6];
-	ob7_lat <= OB[7];
+//Sprite flip control
+reg hflip, vflip;
+always_ff @(posedge H4) begin
+	hflip <= OB[6];
+	vflip <= OB[7];
 end
 
-//Latch object information
-reg [6:0] obj;
-always_ff @(posedge objdata) begin
-	obj <= {obj_ctl, ob6_lat, ob7_lat, obj_sum[3:0]};
+//Latch sprite information
+reg [6:0] sprite;
+always_ff @(posedge H8) begin
+	sprite <= {sprite_sel, hflip, vflip, sprite_sum[3:0]};
 end
-wire obj_dat = obj[4];
-assign NE83 = obj[5];
-assign OCS = obj[6];
+wire sprite_vflip = sprite[4];
+assign OFLP = sprite[5];
+assign OCS = sprite[6];
 
-//Assign OCOL and ODAT outputs
-assign OCOL = ~(~LD & ~H4 & H8);
-wire objdata = ~(~LD & H4 & ~H8);
-assign ODAT = objdata;
+//Assign OCOL (sprite color) and ODAT (sprite data) outputs
+assign OCOL = ({H8, H4, LD} != 3'b100);
+assign ODAT = ({H8, H4, LD} != 3'b010);
 
 //XOR final output for R
-assign R[5] = (obj[3] ^ obj_dat);
-assign R[4] = (NE83 ^ H8);
-assign R[3] = (NE83 ^ ~H4);
-assign R[2] = (obj[2] ^ obj_dat);
-assign R[1] = (obj[1] ^ obj_dat);
-assign R[0] = (obj[0] ^ obj_dat);
+assign R[5] = (sprite[3] ^ sprite_vflip);
+assign R[4] = (OFLP ^ H8);
+assign R[3] = (OFLP ^ ~H4);
+assign R[2] = (sprite[2] ^ sprite_vflip);
+assign R[1] = (sprite[1] ^ sprite_vflip);
+assign R[0] = (sprite[0] ^ sprite_vflip);
 
 endmodule
-
