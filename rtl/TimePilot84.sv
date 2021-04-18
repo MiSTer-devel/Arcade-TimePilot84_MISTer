@@ -48,7 +48,15 @@ module TimePilot84
 	
 	input         [24:0] ioctl_addr,
 	input          [7:0] ioctl_data,
-	input                ioctl_wr
+	input                ioctl_wr,
+
+	input                pause,
+
+	input	 [15:0]	hs_address,
+	input	 [7:0]	hs_data_in,
+	output [7:0]	hs_data_out,
+	input				hs_write,
+	input				hs_access
 );
 
 //Linking signals between PCBs
@@ -130,7 +138,13 @@ TimePilot84_CPU main_pcb
 	.sl_cs_i(sl_cs_i),
 	.ioctl_addr(ioctl_addr),
 	.ioctl_wr(ioctl_wr),
-	.ioctl_data(ioctl_data)
+	.ioctl_data(ioctl_data),
+	.pause(pause),
+	.hs_address(hs_address),
+	.hs_data_in(hs_data_in),
+	.hs_data_out(hs_data_out),
+	.hs_write(hs_write),
+	.hs_access(hs_access)
 );
 
 //Instantiate sound PCB
