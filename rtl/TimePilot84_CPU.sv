@@ -62,7 +62,15 @@ module TimePilot84_CPU
 	input         sl_cs_i,
 	input  [24:0] ioctl_addr,
 	input   [7:0] ioctl_data,
-	input         ioctl_wr
+	input         ioctl_wr,
+
+	input         pause,
+
+	input	 [15:0]	hs_address,
+	input	 [7:0]	hs_data_in,
+	output [7:0]	hs_data_out,
+	input				hs_write,
+	input				hs_access
 );
 
 //------------------------------------------------------- Signal outputs -------------------------------------------------------//
@@ -140,7 +148,7 @@ wire m_rw;
 cpu09 u12G
 (
 	.clk(clk_49m),
-	.ce(mE),
+	.ce(mE & ~pause),
 	.rst(~reset),
 	.rw(m_rw),
 	.addr(mA),
@@ -335,6 +343,16 @@ end
 
 //Shared RAM for the two MC6809E CPUs
 wire [7:0] m_sharedram_D, s_sharedram_D;
+
+// Hiscore mux
+wire [10:0]	u9F_addr = hs_access ? hs_address[10:0] : sA[10:0];
+wire  [7:0]	u9F_din = hs_access ? hs_data_in : sD_out;
+wire			u9F_wren = hs_access ? hs_write : (cs_ssharedram & ~s_rw);
+
+wire  [7:0]	u9F_dout;
+assign s_sharedram_D = hs_access ? 8'h00 : u9F_dout;
+assign hs_data_out = hs_access ? u9F_dout : 8'h00;
+
 dpram_dc #(.widthad_a(11)) u9F
 (
 	.clock_a(clk_49m),
@@ -344,10 +362,10 @@ dpram_dc #(.widthad_a(11)) u9F
 	.wren_a(cs_msharedram & ~m_rw),
 
 	.clock_b(clk_49m),
-	.address_b(sA[10:0]),
-	.data_b(sD_out),
-	.q_b(s_sharedram_D),
-	.wren_b(cs_ssharedram & ~s_rw)
+	.address_b(u9F_addr),
+	.data_b(u9F_din),
+	.q_b(u9F_dout),
+	.wren_b(u9F_wren)
 );
 
 //-------------------------------------------------------- Video timing --------------------------------------------------------//

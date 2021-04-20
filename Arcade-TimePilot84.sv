@@ -200,6 +200,8 @@ assign LED_POWER = 0;
 assign LED_USER  = ioctl_download;
 assign BUTTONS = 0;
 
+assign FB_FORCE_BLANK = 0;
+
 ///////////////////////////////////////////////////
 
 wire [1:0] ar = status[14:13];
@@ -214,14 +216,18 @@ parameter CONF_STR = {
 	"OC,Orientation,Vert,Horz;",
 	"OFH,Scandoubler Fx,None,HQ2x,CRT 25%,CRT 50%,CRT 75%;",
 	"-;",
+	"P1,Pause options;",
+	"P1OP,Pause when OSD is open,On,Off;",
+	"P1OQ,Dim video after 10s,On,Off;",
+	"-;",
 	"DIP;",
 	"-;",
 	"O36,H Center,0,-1,-2,-3,-4,-5,-6,-7,+7,+6,+5,+4,+3,+2,+1;",
 	"O7A,V Center,0,-1,-2,-3,-4,-5,-6,-7,-8,-9,-10,-11,-12;",
 	"-;",
 	"R0,Reset;",
-	"J1,Shot,Missile,Start P1,Coin,Start P2;",
-	"jn,B,A,Start,R,Select;",
+	"J1,Shot,Missile,Start P1,Coin,Start P2,Pause;",
+	"jn,B,A,Start,R,Select,L;",
 	"V,v",`BUILD_DATE
 };
 
@@ -231,10 +237,12 @@ wire [31:0] status;
 wire [10:0] ps2_key;
 
 wire        ioctl_download;
+wire        ioctl_upload;
+wire  [7:0] ioctl_index;
 wire        ioctl_wr;
 wire [24:0] ioctl_addr;
 wire  [7:0] ioctl_dout;
-wire  [7:0] ioctl_index;
+wire  [7:0] ioctl_din;
 
 wire [15:0] joystick_0, joystick_1;
 wire [15:0] joy = joystick_0 | joystick_1;
@@ -258,9 +266,11 @@ hps_io #(.STRLEN($size(CONF_STR)>>3)) hps_io
 	.status_menumask(direct_video),
 
 	.ioctl_download(ioctl_download),
+	.ioctl_upload(ioctl_upload),
 	.ioctl_wr(ioctl_wr),
 	.ioctl_addr(ioctl_addr),
 	.ioctl_dout(ioctl_dout),
+	.ioctl_din(ioctl_din),
 	.ioctl_index(ioctl_index),
 
 	.joystick_0(joystick_0),
@@ -295,6 +305,7 @@ reg btn_coin1    = 0;
 reg btn_coin2    = 0;
 reg btn_1p_start = 0;
 reg btn_2p_start = 0;
+reg btn_pause    = 0;
 reg btn_service  = 0;
 
 wire pressed = ps2_key[9];
@@ -309,6 +320,7 @@ always @(posedge CLK_49M) begin
 			'h2E: btn_coin1    <= pressed; // 5
 			'h36: btn_coin2    <= pressed; // 6
 			'h46: btn_service  <= pressed; // 9
+			'h4D: btn_pause    <= pressed; // P
 
 			'h75: btn_up      <= pressed; // up
 			'h72: btn_down    <= pressed; // down
@@ -343,7 +355,20 @@ wire m_start1   = btn_1p_start | joy[6];
 wire m_start2   = btn_2p_start | joy[8];
 wire m_coin1    = btn_coin1    | joy[7];
 wire m_coin2    = btn_coin2;
+wire m_pause    = btn_pause    | joy[9];
 
+// PAUSE SYSTEM
+wire				pause_cpu;
+wire [11:0]		rgb_out;
+pause #(4,4,4,49) pause (
+	.*,
+	.clk_sys(CLK_49M),
+	.user_button(m_pause),
+	.pause_request(1'b0),
+	.options(~status[26:25])
+);
+
+// DIP SWITCHES
 reg [7:0] dip_sw[8];	// Active-LOW
 reg [7:0] is_set3;
 always @(posedge CLK_49M) begin
@@ -371,7 +396,7 @@ arcade_video #(256,12) arcade_video
 
 	.clk_video(CLK_49M),
 
-	.RGB_in({r,g,b}),
+	.RGB_in(rgb_out),
 	.HBlank(hblank),
 	.VBlank(vblank),
 	.HSync(~hs),
@@ -419,7 +444,45 @@ TimePilot84 TP84_inst
 	
 	.ioctl_addr(ioctl_addr),
 	.ioctl_wr(ioctl_wr && !ioctl_index),
-	.ioctl_data(ioctl_dout)
+	.ioctl_data(ioctl_dout),
+	
+	.pause(pause_cpu),
+
+	.hs_address(hs_address),
+	.hs_data_out(ioctl_din),
+	.hs_data_in(hs_data_in),
+	.hs_write(hs_write),
+	.hs_access(hs_access)
+);
+
+// HISCORE SYSTEM
+// --------------
+
+wire [15:0]hs_address;
+wire [7:0]hs_data_in;
+wire hs_write;
+wire hs_access;
+wire hs_pause;
+
+hiscore #(
+	.HS_ADDRESSWIDTH(16),
+	.CFG_ADDRESSWIDTH(3),
+	.CFG_LENGTHWIDTH(2)
+) hi (
+	.clk(CLK_49M),
+	.reset(reset),
+	.ioctl_upload(ioctl_upload),
+	.ioctl_download(ioctl_download),
+	.ioctl_wr(ioctl_wr),
+	.ioctl_addr(ioctl_addr),
+	.ioctl_dout(ioctl_dout),
+	.ioctl_din(ioctl_din),
+	.ioctl_index(ioctl_index),
+	.ram_address(hs_address),
+	.data_to_ram(hs_data_in),
+	.ram_write(hs_write),
+	.ram_access(hs_access),
+	.pause_cpu(hs_pause)
 );
 
 endmodule

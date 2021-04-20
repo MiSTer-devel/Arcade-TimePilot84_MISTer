@@ -9,3 +9,5 @@ set_global_assignment -name QIP_FILE rtl/cpu/tp84_cpu.qip
 set_global_assignment -name QIP_FILE rtl/custom/tp84_custom.qip
 set_global_assignment -name QIP_FILE rtl/sound/tp84_sound.qip
 set_global_assignment -name QIP_FILE rtl/ram_rom/tp84_ram_rom.qip
+set_global_assignment -name VERILOG_FILE rtl/pause.v
+set_global_assignment -name VERILOG_FILE rtl/hiscore.v
