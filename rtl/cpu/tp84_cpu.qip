@@ -1,4 +1,4 @@
-set_global_assignment -name VHDL_FILE rtl/cpu/MC6809/cpu09l_128a.vhd
+set_global_assignment -name VERILOG_FILE rtl/cpu/MC6809/mc6809is.v
 set_global_assignment -name VHDL_FILE rtl/cpu/T80/T80s.vhd
 set_global_assignment -name VHDL_FILE rtl/cpu/T80/T80.vhd
 set_global_assignment -name VHDL_FILE rtl/cpu/T80/T80_ALU.vhd

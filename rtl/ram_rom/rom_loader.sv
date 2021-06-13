@@ -47,12 +47,12 @@ module selector
 	input logic [24:0] ioctl_addr,
 	output logic ep1_cs, ep2_cs, ep3_cs, ep4_cs, ep5_cs, ep6_cs, ep7_cs, ep8_cs,
 	             ep9_cs, ep10_cs, ep11_cs, ep12_cs, cp1_cs, cp2_cs, cp3_cs,
-                 tl_cs, sl_cs
+	             tl_cs, sl_cs
 );
 
 	always_comb begin
 		{ep1_cs, ep2_cs, ep3_cs, ep4_cs, ep5_cs, ep6_cs, ep7_cs, ep8_cs,
-         ep9_cs, ep10_cs, ep11_cs, ep12_cs, cp1_cs, cp2_cs, cp3_cs,
+		 ep9_cs, ep10_cs, ep11_cs, ep12_cs, cp1_cs, cp2_cs, cp3_cs,
 		 tl_cs, sl_cs} = 0;
 		if(ioctl_addr < 'h2000)
 			ep1_cs = 1; // 0x2000 13
@@ -294,7 +294,6 @@ module eprom_9
 	input logic [12:0] ADDR,
 	input logic [24:0] ADDR_DL,
 	input logic [7:0]  DATA_IN,
-	input logic        ENA,
 	input logic        CS_DL,
 	input logic        WR,
 	output logic [7:0] DATA
@@ -304,7 +303,6 @@ module eprom_9
 		.clock_a(CLK),
 		.address_a(ADDR[12:0]),
 		.q_a(DATA[7:0]),
-		.byteena_a(ENA),
 
 		.clock_b(CLK_DL),
 		.address_b(ADDR_DL[12:0]),
@@ -344,7 +342,6 @@ module eprom_11
 	input logic [12:0] ADDR,
 	input logic [24:0] ADDR_DL,
 	input logic [7:0]  DATA_IN,
-	input logic        ENA,
 	input logic        CS_DL,
 	input logic        WR,
 	output logic [7:0] DATA
@@ -354,7 +351,6 @@ module eprom_11
 		.clock_a(CLK),
 		.address_a(ADDR[12:0]),
 		.q_a(DATA[7:0]),
-		.byteena_a(ENA),
 
 		.clock_b(CLK_DL),
 		.address_b(ADDR_DL[12:0]),
@@ -370,7 +366,6 @@ module eprom_12
 	input logic [12:0] ADDR,
 	input logic [24:0] ADDR_DL,
 	input logic [7:0]  DATA_IN,
-	input logic        ENA,
 	input logic        CS_DL,
 	input logic        WR,
 	output logic [7:0] DATA
@@ -380,7 +375,6 @@ module eprom_12
 		.clock_a(CLK),
 		.address_a(ADDR[12:0]),
 		.q_a(DATA[7:0]),
-		.byteena_a(ENA),
 
 		.clock_b(CLK_DL),
 		.address_b(ADDR_DL[12:0]),

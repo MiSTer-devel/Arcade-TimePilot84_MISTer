@@ -29,7 +29,7 @@
          _|             |_
 SPLB(0) |_|1          28|_| VCC
          _|             |_
-SPLB(1) |_|2          27|_| ?
+SPLB(1) |_|2          27|_| RESET
          _|             |_
 SPLB(2) |_|3          26|_| SPLB(4)
          _|             |_
@@ -62,6 +62,7 @@ Note: The SPLB pins are bidirectional - this model splits these pins into separa
 
 module k502
 (
+	input        RESET,
 	input        CK1,
 	input        CK2,
 	input        CEN, //Set to 1 if using this code to replace a real 502
@@ -85,14 +86,20 @@ always_ff @(posedge H2) begin
 end
 wire h4 = h2_div;
 
-//Latch H256 on rising edge of LD0 and delay by one cycle
+//Latch H256 on rising edge of LD0 and delay by one cycle (set to 0 if 502 is held in reset)
 reg h256_lat = 0;
-always_ff @(posedge LD0) begin
-	h256_lat <= H256;
+always_ff @(posedge LD0 or negedge RESET) begin
+	if(!RESET)
+		h256_lat <= 0;
+	else
+		h256_lat <= H256;
 end
 reg h256_dly = 0;
-always_ff @(posedge h256_lat) begin
-	h256_dly <= ~h256_dly;
+always_ff @(posedge h256_lat or negedge RESET) begin
+	if(!RESET)
+		h256_dly <= 0;
+	else
+		h256_dly <= ~h256_dly;
 end
 
 //Generate OSEL, OLD and OCLR

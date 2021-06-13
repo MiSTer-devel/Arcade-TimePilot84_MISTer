@@ -4,7 +4,7 @@ An FPGA implementation of Time Pilot '84 by Ace, ElectronAsh, Enforcer, loloC2C 
 ## Features
 - Timing-accurate logic model made to match the original as closely as possible
 - Keyboard and joystick controls
-- CPU09 CPU by John E. Kent with modifications by B. Cuzeau
+- Greg Miller's cycle-accurate MC6809E CPU core with modifications by Sorgelig and bugfixes by Arnim Laeuger and Jotego
 - T80s CPU by Daniel Wallner with fixes by MikeJ, Sorgelig, and others
 - SN76489 sound core by Arnim Laeuger with fixes by Ace and Enforcer
 - Fully-tuned audio filters (selectable within the core) including the PCB's switchable low-pass filters
@@ -42,5 +42,4 @@ Quick reference for folders and file placement:
 
 ## Known Issues
 1) Resolution is incorrectly reported as 253x224
-2) Some MiSTers may exhibit graphical corruption on sprites - this is currently being investigated
 

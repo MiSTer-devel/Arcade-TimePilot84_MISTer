@@ -19,15 +19,16 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.*/
 
 //This is a variation of Gregory Hogan's MISTer Genesis core low-pass filter
-//tuned to match the lightest low-pass filter on Time Pilot '84.
+//tuned to remove aliasing on Time Pilot '84 when applying low-pass filtering
+//via the MiSTer OSB with 48KHz audio sample rate.
 
-module tp84_lpf_light(
+module tp84_lpf(
 	input clk,
 	input reset,
 	input signed [15:0] in,
 	output signed [15:0] out);
 	
-	reg [9:0] div = 256; //Sample at 49.152/256 = 192000Hz
+	reg [9:0] div = 220; //Sample at 49.152/220 = 223418Hz
 	
 	//Coefficients computed with Octave/Matlab/Online filter calculators.
 	//or with scipy.signal.bessel or similar tools
@@ -41,9 +42,9 @@ module tp84_lpf_light(
 	wire signed [15:0] audio_post_lpf1;
 		
 	always @ (*) begin
-		A2 = -18'd29791;
-		B1 = 18'd1488;
-		B2 = 18'd1488;
+		A2 = -18'd18211;
+		B1 = 18'd7278;
+		B2 = 18'd7278;
 	end
 	
 	iir_1st_order lpf6db(.clk(clk),

@@ -203,7 +203,7 @@ begin
 
     function lfsr_tapped_f(lfsr : in std_logic_vector) return std_logic is
       constant tapped_bits_c : std_logic_vector(0 to 14)
-        -- tapped bits are 0, 1, 14
+        -- tapped bits are 0, 2, 14
         := "101000000000001";
       variable parity_v : std_logic;
     begin

@@ -27,7 +27,7 @@
 //Chip pinout:
 /*        _____________
         _|             |_
-VCC    |_|1          28|_| VCC
+reset  |_|1          28|_| VCC
         _|             |_
 h1     |_|2          27|_| GND
         _|             |_
@@ -56,12 +56,13 @@ clk    |_|13         16|_| vblk
 GND    |_|14         15|_| n_vblk
          |_____________|
 
-Note: Pins 1, 12 and 27 may control other features of the 082 - these, if any, have not
+Note: Pins 12 and 27 may control other features of the 082 - these, if any, have not
 been modelled yet.
 */
 
 module k082
 (
+	input       reset, //Active low
 	input       clk,
 	input       cen, //Set to 1 if using this code to replace a real 082
 	input [3:0] h_center, v_center, //These inputs are additions for screen centering and don't exist on the actual 082
@@ -69,6 +70,8 @@ module k082
 	output      n_hsync, //Not exposed on the original chip
 	output reg  vblk = 1,
 	output      n_vblk,
+	output reg  vblk_irq_en = 0, //This is an extra output not present on the real 082 to signal when to
+	                             //trigger a VBlank IRQ (signal is active high)
 	output      h1, h2, h4, h8, h16, h32, h64, h128, h256, n_h256,
 	output      v1, v2, v4, v8, v16, v32, v64, v128
 );
@@ -89,8 +92,12 @@ wire [8:0] vcnt_end = 9'd511 - v_center;
 //-Vertical counter increments when the horizontal counter equals 176
 //-VBlank is active when the horizontal counter is between 495 - 511 and 248 - 270
 //Model this behavior here
-always_ff @(posedge clk) begin
-	if(cen) begin
+always_ff @(posedge clk or negedge reset) begin
+	if(!reset) begin
+		h_cnt <= 9'd0;
+		v_cnt <= 9'd0;
+	end
+	else if(cen) begin
 		case(h_cnt)
 			48: begin
 				v_cnt <= v_cnt + 9'd1;
@@ -109,11 +116,16 @@ always_ff @(posedge clk) begin
 					end
 					495: begin
 						vblk <= 1;
+						vblk_irq_en <= 1;
 						v_cnt <= v_cnt + 9'd1;
 					end
 					vcnt_end: v_cnt <= vcnt_start;
 					default: v_cnt <= v_cnt + 9'd1;
 				endcase
+			end
+			177: begin
+				vblk_irq_en <= 0;
+				h_cnt <= h_cnt + 9'd1;
 			end
 			511: h_cnt <= 9'd128;
 			default: h_cnt <= h_cnt + 9'd1;

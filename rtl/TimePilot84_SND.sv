@@ -55,8 +55,8 @@ module TimePilot84_SND
 
 //Multiplex controls and DIP switches to be output to CPU board
 assign controls_dip = cs_controls_dip1 ? controls_dip1:
-		                cs_dip2          ? dip_sw[15:8]:
-		                8'hFF;
+                      cs_dip2          ? dip_sw[15:8]:
+                      8'hFF;
 
 //------------------------------------------------------- Clock division -------------------------------------------------------//
 
@@ -113,12 +113,11 @@ wire cs_sn0 = (~n_rw & ~n_mreq & n_rfsh & (sound_A[15:13] == 3'b110) & (sound_A[
 wire cs_sn2 = (~n_rw & ~n_mreq & n_rfsh & (sound_A[15:13] == 3'b110) & (sound_A[2:0] == 3'b011));
 wire cs_sn3 = (~n_rw & ~n_mreq & n_rfsh & (sound_A[15:13] == 3'b110) & (sound_A[2:0] == 3'b100));
 //Multiplex data input to Z80
-wire [7:0] sound_Din =
-		cs_soundrom          ? eprom6_D:
-		(cs_soundram & n_wr) ? sndram_D:
-		cs_sound             ? sound_D:
-		cs_timer             ? {4'hF, timer}:
-		8'hFF;
+wire [7:0] sound_Din = cs_soundrom          ? eprom6_D:
+                       (cs_soundram & n_wr) ? sndram_D:
+                       cs_sound             ? sound_D:
+                       cs_timer             ? {4'hF, timer}:
+                       8'hFF;
 
 //Sound ROM
 wire [7:0] eprom6_D;
@@ -163,12 +162,12 @@ always_ff @(posedge clk_49m) begin
 end
 
 //Generate Z80 interrupts
-wire n_irq_clr = ~(~reset | ~(n_iorq | n_m1));
+wire irq_clr = (~reset | ~(n_iorq | n_m1));
 reg n_irq = 1;
-always_ff @(posedge irq_trigger or negedge n_irq_clr) begin
-	if(!n_irq_clr)
+always_ff @(posedge clk_49m or posedge irq_clr) begin
+	if(irq_clr)
 		n_irq <= 1;
-	else
+	else if(cen_3m && irq_trigger)
 		n_irq <= 0;
 end
 
@@ -337,6 +336,7 @@ always_ff @(posedge clk_49m) begin
 	end
 end
 
+//Apply audio filtering based on the state of the low-pass filter controls
 always_comb begin
 	case(sn0_filter)
 		2'b00: sn0_sound = sn0_dcrm;
@@ -349,8 +349,16 @@ end
 assign sn2_sound = sn2_filter ? sn2_filt : sn2_dcrm;
 assign sn3_sound = sn3_filter ? sn3_filt : sn3_dcrm;
 
-//Mix all SN76489s (this game has variable low-pass filtering based on how loud the PCB's volume dial is set and will be modeled
-//externally)
-assign sound = (sn0_sound + sn2_sound + sn3_sound);
+//Mix all SN76489s and apply an anti-aliasing low-pass filter to prevent ringing noises when using low-pass filtering via
+//the MiSTer OSD at 48KHz (this game also has variable low-pass filtering based on how loud the PCB's volume dial is set and
+//will be modeled externally)
+wire signed [15:0] sn76489_mix = (sn0_sound + sn2_sound + sn3_sound);
+tp84_lpf aalpf
+(
+	.clk(clk_49m),
+	.reset(~reset),
+	.in(sn76489_mix),
+	.out(sound)
+);
 
 endmodule

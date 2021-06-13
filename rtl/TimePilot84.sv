@@ -52,11 +52,11 @@ module TimePilot84
 
 	input                pause,
 
-	input	 [15:0]	hs_address,
-	input	 [7:0]	hs_data_in,
-	output [7:0]	hs_data_out,
-	input				hs_write,
-	input				hs_access
+	input         [15:0] hs_address,
+	input          [7:0] hs_data_in,
+	output         [7:0] hs_data_out,
+	input                hs_write,
+	input                hs_access
 );
 
 //Linking signals between PCBs

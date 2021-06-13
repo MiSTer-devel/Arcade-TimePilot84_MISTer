@@ -35,11 +35,11 @@
 		<dip bits="11,12" ids="10K/50K+,20K/60K+,30K/70K+,40K/80K+" name="Bonus"></dip>
 		<dip bits="13,14" ids="Easy,Normal,Hard,Hardest" name="Difficulty"></dip>
 		<dip bits="15" ids="Off,On" name="Attract mode sound"></dip>
-		</switches>
+	</switches>
 
 	<rom index="1">
 		<part>00</part>
-		</rom>
+	</rom>
 	<rom index="0" md5="none" zip="tp84.zip|tp84a.zip">
 		<part crc="605f61c7" name="388_f04.7j"></part>
 		<part crc="e97d5093" name="388_f05.8j"></part>
@@ -58,16 +58,16 @@
 		<part crc="2e21329b" name="388d16.1e"></part>
 		<part crc="61d2d398" name="388d18.1f"></part>
 		<part crc="af8f839c" name="388d17.16c"></part>
-		</rom>
+	</rom>
 	<rom index="2"></rom>
 	<rom index="3" md5="none">
 		<part>
-		13 00 00 00 00 FF 00 02
-		00 02 00 01 00 FF 02 00
-		00 00 57 A0 00 1E 00 54
-		00 00 57 36 00 03 00 00
+			13 00 00 00 00 FF 00 02
+			00 02 00 01 00 FF 02 00
+			00 00 57 A0 00 1E 00 54
+			00 00 57 36 00 03 00 00
 		</part>
-		</rom>
+	</rom>
 	<rom index="4"></rom>
 
 	<nvram index="4" size="33"></nvram>

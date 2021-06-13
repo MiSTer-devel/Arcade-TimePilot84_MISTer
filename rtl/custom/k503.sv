@@ -97,7 +97,7 @@ end
 
 //Latch sprite information
 reg [6:0] sprite;
-always_ff @(posedge H8) begin
+always_ff @(negedge H4) begin
 	sprite <= {sprite_sel, hflip, vflip, sprite_sum[3:0]};
 end
 wire sprite_vflip = sprite[4];

@@ -35,7 +35,7 @@
 		<dip bits="11,12" ids="10K/50K+,20K/60K+,30K/70K+,40K/80K+" name="Bonus"></dip>
 		<dip bits="13,14" ids="Easy,Normal,Hard,Hardest" name="Difficulty"></dip>
 		<dip bits="15" ids="Off,On" name="Attract mode sound"></dip>
-		</switches>
+	</switches>
 
 	<rom index="1">
 		<part>00</part>
@@ -58,7 +58,7 @@
 		<part crc="2e21329b" name="388d16.1e"></part>
 		<part crc="61d2d398" name="388d18.1f"></part>
 		<part crc="13c4e198" name="388j17.16c"></part>
-		</rom>
+	</rom>
 	<rom index="2"></rom>
 	<rom index="3" md5="none">
 		<part>

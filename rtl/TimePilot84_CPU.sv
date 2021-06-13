@@ -66,11 +66,11 @@ module TimePilot84_CPU
 
 	input         pause,
 
-	input	 [15:0]	hs_address,
-	input	 [7:0]	hs_data_in,
-	output [7:0]	hs_data_out,
-	input				hs_write,
-	input				hs_access
+	input  [15:0] hs_address,
+	input   [7:0] hs_data_in,
+	output  [7:0] hs_data_out,
+	input         hs_write,
+	input         hs_access
 );
 
 //------------------------------------------------------- Signal outputs -------------------------------------------------------//
@@ -100,19 +100,21 @@ assign cs_sounddata = is_set3 ? ((mA[15:4] == 12'h1E8) & ~m_rw) : ((mA[15:8] == 
 //Generate sound IRQ trigger
 reg sound_irq = 1;
 always_ff @(posedge clk_49m) begin
-	if(cen_3m && cs_soundirq)
-		sound_irq <= 0;
-	else
-		sound_irq <= 1;
+	if(cen_3m) begin
+		if(cs_soundirq)
+			sound_irq <= 1;
+		else
+			sound_irq <= 0;
+	end
 end
 assign irq_trigger = sound_irq;
 
 //------------------------------------------------------- Clock division -------------------------------------------------------//
 
-//Generate 6.144MHz, 3.072MHz and 1.576MHz clock enables along with an extra clock enable to latch the vertical counter
-reg [8:0] div = 9'd0;
+//Generate 6.144MHz, 3.072MHz and 1.576MHz clock enables
+reg [4:0] div = 5'd0;
 always_ff @(posedge clk_49m) begin
-	div <= div + 9'd1;
+	div <= div + 5'd1;
 end
 reg [2:0] n_div = 3'd0;
 always_ff @(negedge clk_49m) begin
@@ -121,43 +123,52 @@ end
 wire cen_6m = !div[2:0];
 wire n_cen_6m = !n_div;
 wire cen_3m = !div[3:0];
-wire cen_1m5 = !div[4:0];
-wire cen_vcntlatch = !div;
+wire cen_1m5 = !div;
 
 //Generate E clock enables for MC6809Es (code adapted from Sorgelig's phase generator used in the MiSTer Vectrex core)
-reg mE, sE;
+reg mE = 0;
+reg mQ = 0;
+reg sE = 0;
+reg sQ = 0;
 always_ff @(posedge clk_49m) begin
-	reg [1:0] clk_phase = 0;
+	reg [1:0] clk_phase =0;
 	mE <= 0;
+	mQ <= 0;
 	sE <= 0;
+	sQ <= 0;
 	if(cen_6m) begin
 		clk_phase <= clk_phase + 1'd1;
 		case(clk_phase)
 			2'b00: sE <= 1;
+			2'b01: mQ <= 1;
 			2'b10: mE <= 1;
+			2'b11: sQ <= 1;
 		endcase
 	end
 end
 
 //------------------------------------------------------------ CPUs ------------------------------------------------------------//
 
-//Primary CPU - Motorola MC6809E (uses modified version of John E. Kent's CPU09 by B. Cuzeau)
+//Primary CPU - Motorola MC6809E (uses synchronous version of Greg Miller's cycle-accurate MC6809E made by Sorgelig with an
+//additional bugfix by Arnim Laeuger and Jotego)
 wire [15:0] mA;
 wire [7:0] mD_out;
 wire m_rw;
-cpu09 u12G
+mc6809is u12G
 (
-	.clk(clk_49m),
-	.ce(mE & ~pause),
-	.rst(~reset),
-	.rw(m_rw),
-	.addr(mA),
-	.data_in(mD_in),
-	.data_out(mD_out),
-	.halt(0),
-	.irq(mirq),
-	.firq(0),
-	.nmi(0)
+	.CLK(clk_49m),
+	.fallE_en(mE),
+	.fallQ_en(mQ),
+	.D(mD_in),
+	.DOut(mD_out),
+	.ADDR(mA),
+	.RnW(m_rw),
+	.nIRQ(mirq),
+	.nFIRQ(1),
+	.nNMI(1),
+	.nHALT(pause), 
+	.nRESET(reset),
+	.nDMABREQ(1)
 );
 //Address decoding for primary MC6809E (Time Pilot '84 (Set 3) has everything but its ROMs relocated to different parts of the
 //primary MC6809E's address space - reconfigure this based on the state of the is_set3 flag)
@@ -174,16 +185,15 @@ wire cs_rom2 = (mA[15:13] == 3'b101);
 wire cs_rom3 = (mA[15:13] == 3'b110);
 wire cs_rom4 = (mA[15:13] == 3'b111);
 //Multiplex data inputs to primary MC6809E
-wire [7:0] mD_in =
-		(cs_controls_dip1 | cs_dip2) ? controls_dip:
-		(cs_vram & m_rw)             ? vram_Dout:
-		(cs_cram & m_rw)             ? cram_Dout:
-		(cs_msharedram & m_rw)       ? m_sharedram_D:
-		cs_rom1                      ? eprom1_D:
-		cs_rom2                      ? eprom2_D:
-		cs_rom3                      ? eprom3_D:
-		cs_rom4                      ? eprom4_D:
-		8'hFF;
+wire [7:0] mD_in = (cs_controls_dip1 | cs_dip2) ? controls_dip:
+                   (cs_vram & m_rw)             ? vram_Dout:
+                   (cs_cram & m_rw)             ? cram_Dout:
+                   (cs_msharedram & m_rw)       ? m_sharedram_D:
+                   cs_rom1                      ? eprom1_D:
+                   cs_rom2                      ? eprom2_D:
+                   cs_rom3                      ? eprom3_D:
+                   cs_rom4                      ? eprom4_D:
+                   8'hFF;
 
 //Primary CPU ROMs (there is a 5th ROM socket on the original PCB at 6J, but is unpopulated)
 //ROM 1/4
@@ -268,31 +278,36 @@ always_ff @(posedge clk_49m) begin
 end
 
 //Generate VBlank IRQ for primary MC6809E
-reg mirq = 0;
-always_ff @(posedge vblk or negedge mirq_mask) begin
-	if(!mirq_mask)
-		mirq <= 0;
-	else
-		mirq <= 1;
+reg mirq = 1;
+always_ff @(posedge clk_49m) begin
+	if(cen_6m) begin
+		if(!mirq_mask)
+			mirq <= 1;
+		else if(vblank_irq_en)
+			mirq <= 0;
+	end
 end
 
-//Secondary CPU - Motorola MC6809E (uses modified version of John E. Kent's CPU09 by B. Cuzeau)
+//Secondary CPU - Motorola MC6809E (uses synchronous version of Greg Miller's cycle-accurate MC6809E made by Sorgelig with an
+//additional bugfix by Arnim Laeuger and Jotego)
 wire [15:0] sA;
 wire [7:0] sD_out;
 wire s_rw;
-cpu09 u12E
+mc6809is u12E
 (
-	.clk(clk_49m),
-	.ce(sE),
-	.rst(~reset),
-	.rw(s_rw),
-	.addr(sA),
-	.data_in(sD_in),
-	.data_out(sD_out),
-	.halt(0),
-	.irq(sirq),
-	.firq(0),
-	.nmi(0)
+	.CLK(clk_49m),
+	.fallE_en(sE),
+	.fallQ_en(sQ),
+	.D(sD_in),
+	.DOut(sD_out),
+	.ADDR(sA),
+	.RnW(s_rw),
+	.nIRQ(sirq),
+	.nFIRQ(1),
+	.nNMI(1),
+	.nHALT(1), 
+	.nRESET(reset),
+	.nDMABREQ(1)
 );
 //Address decoding for secondary MC6809E
 wire cs_beam = (sA[15:13] == 3'b001);
@@ -301,13 +316,12 @@ wire cs_ssharedram = (sA[15:11] == 5'b10000);
 wire cs_spriteram = (sA[15:13] == 3'b011);
 wire cs_rom5 = (sA[15:13] == 3'b111);
 //Multiplex data inputs to secondary MC6809E
-wire [7:0] sD_in =
-		cs_rom5                        ? eprom5_D:
-		(cs_ssharedram & s_rw)         ? s_sharedram_D:
-		cs_spriteram1 & ~spriteram1_we ? spriteram_D[15:8]:
-		cs_spriteram0 & ~spriteram0_we ? spriteram_D[7:0]:
-		cs_beam                        ? vcnt_lat:
-		8'hFF;
+wire [7:0] sD_in = cs_rom5                          ? eprom5_D:
+                   (cs_ssharedram & s_rw)           ? s_sharedram_D:
+                   (cs_spriteram1 & ~spriteram1_we) ? spriteram_D[15:8]:
+                   (cs_spriteram0 & ~spriteram0_we) ? spriteram_D[7:0]:
+                   cs_beam                          ? vcnt_lat:
+                   8'hFF;
 
 //Secondary CPU ROM
 wire [7:0] eprom5_D;
@@ -333,49 +347,52 @@ always_ff @(posedge clk_49m) begin
 end
 
 //Generate VBlank IRQ for secondary MC6809E
-reg sirq = 0;
-always_ff @(posedge vblk or negedge sirq_mask) begin
-	if(!sirq_mask)
-		sirq <= 0;
-	else
-		sirq <= 1;
+reg sirq = 1;
+always_ff @(posedge clk_49m) begin
+	if(cen_6m) begin
+		if(!sirq_mask)
+			sirq <= 1;
+		else if(vblank_irq_en)
+			sirq <= 0;
+	end
 end
 
 //Shared RAM for the two MC6809E CPUs
 wire [7:0] m_sharedram_D, s_sharedram_D;
 
 // Hiscore mux
-wire [10:0]	u9F_addr = hs_access ? hs_address[10:0] : sA[10:0];
-wire  [7:0]	u9F_din = hs_access ? hs_data_in : sD_out;
-wire			u9F_wren = hs_access ? hs_write : (cs_ssharedram & ~s_rw);
+wire [10:0] u9F_addr = hs_access ? hs_address[10:0] : sA[10:0];
+wire [7:0] u9F_din = hs_access ? hs_data_in : sD_out;
+wire u9F_wren = hs_access ? hs_write : (cs_ssharedram & ~s_rw);
 
-wire  [7:0]	u9F_dout;
+wire [7:0] u9F_dout;
 assign s_sharedram_D = hs_access ? 8'h00 : u9F_dout;
 assign hs_data_out = hs_access ? u9F_dout : 8'h00;
 
 dpram_dc #(.widthad_a(11)) u9F
 (
 	.clock_a(clk_49m),
+	.wren_a(cs_msharedram & ~m_rw),
 	.address_a(mA[10:0]),
 	.data_a(mD_out),
 	.q_a(m_sharedram_D),
-	.wren_a(cs_msharedram & ~m_rw),
-
+	
 	.clock_b(clk_49m),
+	.wren_b(u9F_wren),
 	.address_b(u9F_addr),
 	.data_b(u9F_din),
-	.q_b(u9F_dout),
-	.wren_b(u9F_wren)
+	.q_b(u9F_dout)
 );
 
 //-------------------------------------------------------- Video timing --------------------------------------------------------//
 
 //Konami 082 custom chip - responsible for all video timings
-wire vblk;
+wire vblk, vblank_irq_en;
 wire [8:0] h_cnt;
 wire [7:0] v_cnt;
 k082 u6A
 (
+	.reset(1),
 	.clk(clk_49m),
 	.cen(cen_6m),
 	.h_center(h_center),
@@ -384,6 +401,7 @@ k082 u6A
 	.sync(video_csync),
 	.n_hsync(video_hsync),
 	.vblk(vblk),
+	.vblk_irq_en(vblank_irq_en),
 	.h1(h_cnt[0]),
 	.h2(h_cnt[1]),
 	.h4(h_cnt[2]),
@@ -403,16 +421,16 @@ k082 u6A
 	.v128(v_cnt[7])
 );
 
-//Latch vertical counter bits from 082 custom chip
+//Latch vertical counter from 082 custom chip when the horizontal counter hits 255
 reg [7:0] vcnt_lat = 8'd0;
 always_ff @(posedge clk_49m) begin
-	if(cen_vcntlatch)
+	if(cen_6m && h_cnt == 9'd255)
 		vcnt_lat <= v_cnt;
 end
 
 //Latch least significant bit of horizontal counter (to be used for sprite RAM logic)
 reg h1d;
-always_ff @(negedge clk_49m) begin
+always_ff @(posedge clk_49m) begin
 	if(n_cen_6m)
 		h1d <= h_cnt[0];
 end
@@ -454,11 +472,11 @@ wire [7:0] vram_D, vram_Dout;
 dpram_dc #(.widthad_a(11)) u5F
 (
 	.clock_a(clk_49m),
+	.wren_a(cs_vram & ~m_rw),
 	.address_a(mA[10:0]),
 	.data_a(mD_out),
 	.q_a(vram_Dout),
-	.wren_a(cs_vram & ~m_rw),
-
+	
 	.clock_b(clk_49m),
 	.address_b(vram_cram_A),
 	.q_b(vram_D)
@@ -469,11 +487,11 @@ wire [7:0] cram_D, cram_Dout;
 dpram_dc #(.widthad_a(11)) u4F
 (
 	.clock_a(clk_49m),
+	.wren_a(cs_cram & ~m_rw),
 	.address_a(mA[10:0]),
 	.data_a(mD_out),
 	.q_a(cram_Dout),
-	.wren_a(cs_cram & ~m_rw),
-
+	
 	.clock_b(clk_49m),
 	.address_b(vram_cram_A),
 	.q_b(cram_D)
@@ -507,13 +525,15 @@ always_ff @(posedge clk_49m) begin
 	end
 end
 
-//Generate lower 4 address lines of tilemap ROMs on the falling edge of horizontal counter bit 1
+//Generate lower 4 address lines of tilemap ROMs when the lower 2 bits of the horizontal counter are both set to 1
 reg va1l, va2l, va4l, ha2l;
-always_ff @(negedge h_cnt[1]) begin
-	va1l <= va[0];
-	va2l <= va[1];
-	va4l <= va[2];
-	ha2l <= ha[2];
+always_ff @(posedge clk_49m) begin
+	if(cen_6m && h_cnt[1:0] == 2'b11) begin
+		va1l <= va[0];
+		va2l <= va[1];
+		va4l <= va[2];
+		ha2l <= ha[2];
+	end
 end
 
 //Address tilemap ROMs and assign tile flip attributes
@@ -609,12 +629,11 @@ wire tile_sel0 = (~(shf0_l | top_hud_en) | bottom_hud_en);
 wire tile_sel1 = (~(shf1_l | top_hud_en) | bottom_hud_en);
 
 //Multiplex tile data
-wire [3:0] tile_D =
-		({tile_sel1, tile_sel0} == 2'b00) ? SF:
-		({tile_sel1, tile_sel0} == 2'b01) ? SH:
-		({tile_sel1, tile_sel0} == 2'b10) ? SS:
-		({tile_sel1, tile_sel0} == 2'b11) ? S:
-		4'h0;
+wire [3:0] tile_D = ({tile_sel1, tile_sel0} == 2'b00) ? SF:
+                    ({tile_sel1, tile_sel0} == 2'b01) ? SH:
+                    ({tile_sel1, tile_sel0} == 2'b10) ? SS:
+                    ({tile_sel1, tile_sel0} == 2'b11) ? S:
+                    4'h0;
 
 //-------------------------------------------------------- Sprite layer --------------------------------------------------------//
 
@@ -821,6 +840,7 @@ wire [4:0] sprite_D;
 wire sprite_lbuff_sel, sprite_lbuff_dec0, sprite_lbuff_dec1;
 k502 u15D
 (
+	.RESET(1),
 	.CK1(clk_49m),
 	.CK2(clk_49m),
 	.CEN(cen_6m),
@@ -940,7 +960,7 @@ wire [3:0] sprite_lbuff0_D;
 spram #(4, 8) u13D
 (
 	.clk(clk_49m),
-	.we(n_cen_6m & cs_sprite_lbuff0),
+	.we(cen_6m & cs_sprite_lbuff0),
 	.addr(sprite_lbuff0_A),
 	.data(sprite_lbuff_Do[3:0]),
 	.q(sprite_lbuff0_D)
@@ -951,7 +971,7 @@ wire [3:0] sprite_lbuff1_D;
 spram #(4, 8) u14D
 (
 	.clk(clk_49m),
-	.we(n_cen_6m & cs_sprite_lbuff1),
+	.we(cen_6m & cs_sprite_lbuff1),
 	.addr(sprite_lbuff1_A),
 	.data(sprite_lbuff_Do[7:4]),
 	.q(sprite_lbuff1_D)

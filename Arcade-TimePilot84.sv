@@ -63,6 +63,7 @@ module emu
 
 	input  [11:0] HDMI_WIDTH,
 	input  [11:0] HDMI_HEIGHT,
+	output        HDMI_FREEZE,
 
 `ifdef MISTER_FB
 	// Use framebuffer in DDRAM (USE_FB=1 in qsf)
@@ -188,6 +189,8 @@ assign {SDRAM_DQ, SDRAM_A, SDRAM_BA, SDRAM_CLK, SDRAM_CKE, SDRAM_DQML, SDRAM_DQM
 
 assign VGA_F1 = 0;
 assign VGA_SCALER = 0;
+assign FB_FORCE_BLANK = 0;
+assign HDMI_FREEZE = 0;
 
 wire signed [15:0] audio;
 assign AUDIO_L = audio;
@@ -200,8 +203,6 @@ assign LED_POWER = 0;
 assign LED_USER  = ioctl_download;
 assign BUTTONS = 0;
 
-assign FB_FORCE_BLANK = 0;
-
 ///////////////////////////////////////////////////
 
 wire [1:0] ar = status[14:13];
@@ -210,7 +211,7 @@ assign VIDEO_ARX = status[12] ? ((!ar) ? 12'd16 : (ar - 1'd1)) : ((!ar) ? 12'd14
 assign VIDEO_ARY = status[12] ? ((!ar) ? 12'd14 : 12'd0) : ((!ar) ? 12'd16 : 12'd0);
 
 `include "build_id.v"
-parameter CONF_STR = {
+localparam CONF_STR = {
 	"A.TP84;;",
 	"ODE,Aspect Ratio,Original,Full screen,[ARC1],[ARC2];",
 	"OC,Orientation,Vert,Horz;",
@@ -250,7 +251,7 @@ wire [15:0] joy = joystick_0 | joystick_1;
 wire [21:0] gamma_bus;
 wire        direct_video;
 
-hps_io #(.STRLEN($size(CONF_STR)>>3)) hps_io
+hps_io #(.CONF_STR(CONF_STR)) hps_io
 (
 	.clk_sys(CLK_49M),
 	.HPS_BUS(HPS_BUS),
@@ -258,7 +259,6 @@ hps_io #(.STRLEN($size(CONF_STR)>>3)) hps_io
 	.gamma_bus(gamma_bus),
 	.direct_video(direct_video),
 
-	.conf_str(CONF_STR),
 	.forced_scandoubler(forced_scandoubler),
 
 	.buttons(buttons),
@@ -358,13 +358,14 @@ wire m_coin2    = btn_coin2;
 wire m_pause    = btn_pause    | joy[9];
 
 // PAUSE SYSTEM
-wire				pause_cpu;
-wire [11:0]		rgb_out;
-pause #(4,4,4,49) pause (
+wire pause_cpu;
+wire [11:0] rgb_out;
+pause #(4,4,4,49) pause
+(
 	.*,
 	.clk_sys(CLK_49M),
 	.user_button(m_pause),
-	.pause_request(1'b0),
+	.pause_request(0),
 	.options(~status[26:25])
 );
 
@@ -446,7 +447,7 @@ TimePilot84 TP84_inst
 	.ioctl_wr(ioctl_wr && !ioctl_index),
 	.ioctl_data(ioctl_dout),
 	
-	.pause(pause_cpu),
+	.pause(~pause_cpu),
 
 	.hs_address(hs_address),
 	.hs_data_out(ioctl_din),
@@ -458,8 +459,8 @@ TimePilot84 TP84_inst
 // HISCORE SYSTEM
 // --------------
 
-wire [15:0]hs_address;
-wire [7:0]hs_data_in;
+wire [15:0] hs_address;
+wire [7:0] hs_data_in;
 wire hs_write;
 wire hs_access;
 wire hs_pause;
@@ -469,15 +470,9 @@ hiscore #(
 	.CFG_ADDRESSWIDTH(3),
 	.CFG_LENGTHWIDTH(2)
 ) hi (
+	.*,
 	.clk(CLK_49M),
-	.reset(reset),
-	.ioctl_upload(ioctl_upload),
-	.ioctl_download(ioctl_download),
-	.ioctl_wr(ioctl_wr),
-	.ioctl_addr(ioctl_addr),
-	.ioctl_dout(ioctl_dout),
-	.ioctl_din(ioctl_din),
-	.ioctl_index(ioctl_index),
+	.paused(pause_cpu),
 	.ram_address(hs_address),
 	.data_to_ram(hs_data_in),
 	.ram_write(hs_write),
