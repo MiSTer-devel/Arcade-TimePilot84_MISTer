@@ -41,7 +41,7 @@ CK2     |_|6          23|_| SPLB(7)
          _|             |_
 H2      |_|7          22|_| OLD
          _|             |_
-LD0     |_|8          21|_| OCLR
+LDO     |_|8          21|_| OCLR
          _|             |_
 H256    |_|9          20|_| OSEL
          _|             |_
@@ -66,7 +66,7 @@ module k502
 	input        CK1,
 	input        CK2,
 	input        CEN, //Set to 1 if using this code to replace a real 502
-	input        LD0,
+	input        LDO,
 	input        H2,
 	input        H256,
 	input  [3:0] SPAL,
@@ -78,37 +78,47 @@ module k502
 	output [4:0] COL
 );
 
-//As the Konami 502 doesn't have a dedicated input for bit 2 of the horizontal counter (H4), generate
-//this signal internally by dividing H2 by 2
-reg h2_div = 0;
-always_ff @(posedge H2) begin
-	h2_div <= ~h2_div;
-end
-wire h4 = h2_div;
-
 //Latch H256 on rising edge of LD0 and delay by one cycle (set to 0 if 502 is held in reset)
 reg h256_lat = 0;
-always_ff @(posedge LD0 or negedge RESET) begin
+reg old_ldo;
+always_ff @(posedge CK1) begin
+	old_ldo <= LDO;
 	if(!RESET)
 		h256_lat <= 0;
-	else
+	else if(!old_ldo && LDO)
 		h256_lat <= H256;
 end
 reg h256_dly = 0;
-always_ff @(posedge h256_lat or negedge RESET) begin
+reg old_h256_lat;
+always_ff @(posedge CK1) begin
+	old_h256_lat <= h256_lat;
 	if(!RESET)
 		h256_dly <= 0;
-	else
+	else if(!old_h256_lat && h256_lat)
 		h256_dly <= ~h256_dly;
+end
+
+//As the Konami 502 doesn't have a dedicated input for bit 2 of the horizontal counter (H4), generate
+//this signal internally by dividing H2 by 2
+reg h4 = 0;
+reg old_h2;
+always_ff @(posedge CK1) begin
+	old_h2 <= H2;
+	if(!old_h2 && H2)
+		h4 <= ~h4;
 end
 
 //Generate OSEL, OLD and OCLR
 reg [1:0] osel_reg;
-always_ff @(negedge H2) begin
-	if(!h4)
-		osel_reg[1] <= h256_dly;
-	else
-		osel_reg[0] <= osel_reg[1];
+always_ff @(posedge CK1) begin
+	if(!RESET)
+		osel_reg <= 2'b00;
+	else if(old_h2 && !H2) begin
+		if(!h4)
+			osel_reg[1] <= h256_dly;
+		else
+			osel_reg[0] <= osel_reg[1];
+	end
 end
 assign OLD = ~osel_reg[1];
 assign OSEL = osel_reg[0];
@@ -119,15 +129,19 @@ wire [3:0] lbuff_Dmux = OCLR ? SPLBi[3:0] : SPLBi[7:4];
 
 //Latch incoming line buffer RAM data on the falling edge of CK1
 reg [7:0] lbuff_lat;
-always_ff @(negedge CK1) begin
-	if(CEN)
+always_ff @(negedge CK2) begin
+	if(!RESET)
+		lbuff_lat <= 8'd0;
+	else if(CEN)
 		lbuff_lat <= SPLBi;
 end
 
 //Latch multiplexed line buffer RAM data on the falling edge of CK2
 reg [3:0] lbuff_mux_lat;
 always_ff @(negedge CK2) begin
-	if(CEN)
+	if(!RESET)
+		lbuff_mux_lat <= 4'd0;
+	else if(CEN)
 		lbuff_mux_lat <= lbuff_Dmux;
 end
 

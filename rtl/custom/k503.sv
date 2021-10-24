@@ -71,6 +71,7 @@ GND   |_|20         21|_| NC
 
 module k503
 (
+	input        CLK,    //Extra clock input for use with MiSTer (define MISTER_K503 macro to use this)
 	input  [7:0] OB,     //Sprite data input
 	input  [7:0] VCNT,   //Vertical counter input
 	input        H4, H8, //Horizontal counter bits 2 (H4) and 3 (H8)
@@ -88,18 +89,37 @@ wire [7:0] sprite_sum = OB + VCNT;
 //Sprite select signal
 wire sprite_sel = ~(&sprite_sum[7:4]);
 
-//Sprite flip control
+//Latch sprite flip attributes and sprite information on each edge of H4, flip attributes on the positive edge,
+//sprite information on the falling edge
+//If the macro MISTER_K503 is defined, use alternate logic with a dedicated clock input, otherwise latch directly
+//off H4
+reg [6:0] sprite;
 reg hflip, vflip;
+`ifdef MISTER_K503
+reg old_h4;
+always_ff @(posedge CLK) begin
+	old_h4 <= H4;
+	if(!old_h4 && H4) begin
+		hflip <= OB[6];
+		vflip <= OB[7];
+	end
+	else if(old_h4 && !H4)
+		sprite <= {sprite_sel, hflip, vflip, sprite_sum[3:0]};
+	else begin
+		hflip <= hflip;
+		vflip <= vflip;
+		sprite <= sprite;
+	end
+end
+`else
 always_ff @(posedge H4) begin
 	hflip <= OB[6];
 	vflip <= OB[7];
 end
-
-//Latch sprite information
-reg [6:0] sprite;
 always_ff @(negedge H4) begin
 	sprite <= {sprite_sel, hflip, vflip, sprite_sum[3:0]};
 end
+`endif
 wire sprite_vflip = sprite[4];
 assign OFLP = sprite[5];
 assign OCS = sprite[6];

@@ -87,8 +87,8 @@ wire [8:0] vcnt_end = 9'd511 - v_center;
 
 //The horizontal and vertical counters behave as follows at every rising edge of the pixel clock:
 //-Start at 0, then count to 511 (both counters increment by 1 when the horizontal counter is set to 48)
-//-Horizontal counter resets to 128 for a total of 383 horizontal lines
-//-Vertical counter resets to 248 for a total of 263 vertical lines (adjustable with added vertical center signal)
+//-Horizontal counter resets to 128 for a total of 384 horizontal lines
+//-Vertical counter resets to 248 for a total of 264 vertical lines (adjustable with added vertical center signal)
 //-Vertical counter increments when the horizontal counter equals 176
 //-VBlank is active when the horizontal counter is between 495 - 511 and 248 - 270
 //Model this behavior here
@@ -140,7 +140,7 @@ assign n_vblk = ~vblk;
 //Generate active low HSync, VSync and composite sync
 assign n_hsync = h_center[3] ? ~(h_cnt > (182 - h_center[2:0]) && h_cnt < (215 - h_center[2:0])):
                                ~(h_cnt > (175 - h_center[2:0]) && h_cnt < (208 - h_center[2:0]));
-assign n_vsync = h_center[3] ? ~(v_cnt >= vcnt_start + 9'd1 && v_cnt <= vcnt_start + 9'd9) : ~(v_cnt >= vcnt_start && v_cnt <= vcnt_start + 9'd8);
+assign n_vsync = h_center[3] ? ~(v_cnt >= vcnt_start + 9'd1 && v_cnt <= vcnt_start + 9'd8) : ~(v_cnt >= vcnt_start && v_cnt <= vcnt_start + 9'd7);
 assign sync = n_hsync ^ n_vsync;
 
 //Assign the individual horizontal counter bits to their respective outputs (also invert bit 8 of the horizontal counter for H256)
