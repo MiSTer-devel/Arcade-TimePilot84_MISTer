@@ -51,6 +51,10 @@ module TimePilot84
 	input                ioctl_wr,
 
 	input                pause,
+	
+	//This input serves to select different fractional dividers to acheive 3.579545MHz for the Z80 and 1.789772MHz for the
+	//SN76489s depending on whether Time Pilot '84 runs with original or underclocked timings to normalize sync frequencies
+	input                underclock,
 
 	input         [15:0] hs_address,
 	input          [7:0] hs_data_in,
@@ -170,6 +174,8 @@ TimePilot84_SND sound_pcb
 	.cpubrd_Din(cpubrd_D),	
 	.controls_dip(controls_dip),
 	.sound(sound),
+	
+	.underclock(underclock),
 	
 	.ep6_cs_i(ep6_cs_i),
 	.ioctl_addr(ioctl_addr),

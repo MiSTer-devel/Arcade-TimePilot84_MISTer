@@ -42,6 +42,10 @@ module TimePilot84_SND
 	output         [7:0] controls_dip,
 	output signed [15:0] sound,
 	
+	//This input serves to select different fractional dividers to acheive 3.579545MHz for the Z80 and 1.789772MHz for the
+	//SN76489s depending on whether Time Pilot '84 runs with original or underclocked timings to normalize sync frequencies
+	input                underclock,
+	
 	input                ep6_cs_i,
 	input         [24:0] ioctl_addr,
 	input          [7:0] ioctl_data,
@@ -70,12 +74,14 @@ wire cen_dcrm = !div;
 
 //Generate 3.579545MHz clock enable for Z80, 1.789772MHz clock enable for SN76489s, clock enable for Z80 timer
 //(uses Jotego's fractional clock divider from JTFRAME)
+wire [9:0] sound_cen_n = underclock ? 10'd62 : 10'd60;
+wire [9:0] sound_cen_m = underclock ? 10'd843 : 10'd824;
 wire cen_3m58, cen_1m79, cen_timer;
 jtframe_frac_cen #(11) sound_cen
 (
 	.clk(clk_49m),
-	.n(10'd60),
-	.m(10'd824),
+	.n(sound_cen_n),
+	.m(sound_cen_m),
 	.cen({cen_timer, 8'bZZZZZZZZ, cen_1m79, cen_3m58})
 );
 

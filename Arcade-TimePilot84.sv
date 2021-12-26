@@ -216,16 +216,18 @@ localparam CONF_STR = {
 	"ODE,Aspect Ratio,Original,Full screen,[ARC1],[ARC2];",
 	"OC,Orientation,Vert,Horz;",
 	"OFH,Scandoubler Fx,None,HQ2x,CRT 25%,CRT 50%,CRT 75%;",
+	"OL,Game Speed,Native,60Hz Adjust;",
 	"-;",
 	"H1OR,Autosave Hiscores,Off,On;",
-	"P1,Pause options;",
+	"P1,Pause Options;",
 	"P1OP,Pause when OSD is open,On,Off;",
 	"P1OQ,Dim video after 10s,On,Off;",
 	"-;",
 	"DIP;",
 	"-;",
-	"O36,H Center,0,-1,-2,-3,-4,-5,-6,-7,+7,+6,+5,+4,+3,+2,+1;",
-	"O7A,V Center,0,-1,-2,-3,-4,-5,-6,-7,-8,-9,-10,-11,-12;",
+	"P2,Screen Centering;",
+	"P2O36,H Center,0,-1,-2,-3,-4,-5,-6,-7,+7,+6,+5,+4,+3,+2,+1;",
+	"P2O7A,V Center,0,-1,-2,-3,-4,-5,-6,-7,-8,-9,-10,-11,-12;",
 	"-;",
 	"R0,Reset;",
 	"J1,Shot,Missile,Start P1,Coin,Start P2,Pause;",
@@ -291,8 +293,69 @@ pll pll
 	.refclk(CLK_50M),
 	.rst(0),
 	.outclk_0(CLK_49M),
+	.reconfig_to_pll(reconfig_to_pll),
+	.reconfig_from_pll(reconfig_from_pll),
 	.locked(locked)
 );
+
+wire [63:0] reconfig_to_pll;
+wire [63:0] reconfig_from_pll;
+wire        cfg_waitrequest;
+reg         cfg_write;
+reg   [5:0] cfg_address;
+reg  [31:0] cfg_data;
+
+//Reconfigure PLL to apply an ~1% underclock to Time Pilot '84 to bring video timings in spec for 60Hz VSync (sourced from Genesis core)
+pll_cfg pll_cfg
+(
+	.mgmt_clk(CLK_50M),
+	.mgmt_reset(0),
+	.mgmt_waitrequest(cfg_waitrequest),
+	.mgmt_read(0),
+	.mgmt_readdata(),
+	.mgmt_write(cfg_write),
+	.mgmt_address(cfg_address),
+	.mgmt_writedata(cfg_data),
+	.reconfig_to_pll(reconfig_to_pll),
+	.reconfig_from_pll(reconfig_from_pll)
+);
+
+always @(posedge CLK_50M) begin
+	reg underclock = 0, underclock2 = 0;
+	reg [2:0] state = 0;
+	reg underclock_r;
+
+	underclock <= status[21];
+	underclock2 <= underclock;
+
+	cfg_write <= 0;
+	if(underclock2 == underclock && underclock2 != underclock_r) begin
+		state <= 1;
+		underclock_r <= underclock2;
+	end
+
+	if(!cfg_waitrequest) begin
+		if(state)
+			state <= state + 3'd1;
+		case(state)
+			1: begin
+				cfg_address <= 0;
+				cfg_data <= 0;
+				cfg_write <= 1;
+			end
+			5: begin
+				cfg_address <= 7;
+				cfg_data <= underclock_r ? 3268298314 : 3639383488;
+				cfg_write <= 1;
+			end
+			7: begin
+				cfg_address <= 2;
+				cfg_data <= 0;
+				cfg_write <= 1;
+			end
+		endcase
+	end
+end
 
 wire reset = RESET | status[0] | buttons[1];
 
@@ -392,6 +455,7 @@ wire ce_pix;
 
 wire rotate_ccw = 0;
 wire no_rotate = status[12] | direct_video;
+wire flip = ~no_rotate;
 screen_rotate screen_rotate(.*);
 
 arcade_video #(256,12) arcade_video
@@ -451,6 +515,9 @@ TimePilot84 TP84_inst
 	.ioctl_data(ioctl_dout),
 	
 	.pause(~pause_cpu),
+	
+	//Flag to signal that Time Pilot '84 has been underclocked to normalize video timings in order to maintain consistent sound timings and pitch
+	.underclock(status[21]),
 
 	.hs_address(hs_address),
 	.hs_data_out(hs_data_out),

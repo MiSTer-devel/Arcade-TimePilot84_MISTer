@@ -8,6 +8,7 @@ An FPGA implementation of Time Pilot '84 by Ace, ElectronAsh, Enforcer, loloC2C 
 - T80s CPU by Daniel Wallner with fixes by MikeJ, Sorgelig, and others
 - SN76489 sound core by Arnim Laeuger with fixes by Ace and Enforcer
 - Fully-tuned audio filters (selectable within the core) including the PCB's switchable low-pass filters
+- Option for normalized video timings to use with picky HDTVs and monitors (underclocks the game by ~1%)
 
 ## Installation
 Place `*.rbf` into the "_Arcade/cores" folder on your SD card.  Then, place `*.mra` into the "_Arcade" folder and ROM files from MAME into "games/mame".
