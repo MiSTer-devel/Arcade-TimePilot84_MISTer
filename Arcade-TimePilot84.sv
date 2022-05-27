@@ -4,7 +4,7 @@
 //  Copyright (C) 2021 Sorgelig
 //
 //  Time Pilot '84 for MiSTer
-//  Copyright (C) 2020, 2021 Ace, Enforcer, Ash Evans (aka ElectronAsh/OzOnE),
+//  Copyright (C) 2020, 2022 Ace, Enforcer, Ash Evans (aka ElectronAsh/OzOnE),
 //  Enforcer, loloC2C and Kitrinx (aka Rysha)
 //
 //  Permission is hereby granted, free of charge, to any person obtaining a
@@ -37,7 +37,7 @@ module emu
 	input         RESET,
 
 	//Must be passed to hps_io module
-	inout  [45:0] HPS_BUS,
+	inout  [48:0] HPS_BUS,
 
 	//Base video clock. Usually equals to CLK_SYS.
 	output        CLK_VIDEO,
@@ -207,8 +207,8 @@ assign AUDIO_S = 1;
 
 wire [1:0] ar = status[14:13];
 
-assign VIDEO_ARX = status[12] ? ((!ar) ? 12'd16 : (ar - 1'd1)) : ((!ar) ? 12'd14 : (ar - 1'd1));
-assign VIDEO_ARY = status[12] ? ((!ar) ? 12'd14 : 12'd0) : ((!ar) ? 12'd16 : 12'd0);
+assign VIDEO_ARX = status[12] ? ((!ar) ? 12'd253 : (ar - 1'd1)) : ((!ar) ? 12'd224 : (ar - 1'd1));
+assign VIDEO_ARY = status[12] ? ((!ar) ? 12'd224 : 12'd0) : ((!ar) ? 12'd253 : 12'd0);
 
 `include "build_id.v"
 localparam CONF_STR = {
@@ -235,10 +235,10 @@ localparam CONF_STR = {
 	"V,v",`BUILD_DATE
 };
 
-wire        forced_scandoubler;
-wire  [1:0] buttons;
-wire [31:0] status;
-wire [10:0] ps2_key;
+wire         forced_scandoubler;
+wire   [1:0] buttons;
+wire [127:0] status;
+wire  [10:0] ps2_key;
 
 wire        ioctl_download;
 wire        ioctl_upload;
@@ -345,7 +345,7 @@ always @(posedge CLK_50M) begin
 			end
 			5: begin
 				cfg_address <= 7;
-				cfg_data <= underclock_r ? 3268298314 : 3639383488;
+				cfg_data <= underclock_r ? 3262113561 : 3639383488;
 				cfg_write <= 1;
 			end
 			7: begin
@@ -425,8 +425,8 @@ wire m_pause    = btn_pause    | joy[9];
 
 // PAUSE SYSTEM
 wire pause_cpu;
-wire [11:0] rgb_out;
-pause #(4,4,4,49) pause
+wire [23:0] rgb_out;
+pause #(8,8,8,49) pause
 (
 	.*,
 	.clk_sys(CLK_49M),
@@ -449,16 +449,30 @@ end
 
 wire hblank, vblank;
 wire hs, vs;
-wire [3:0] r,g,b;
+wire [3:0] r_out, g_out, b_out;
+
+//Adjust the color tones based on the measured outputs of the weighted resistor DAC
+//on the PCB
+wire [7:0] tp84_color[16] =
+'{
+	8'd0,   8'd14,  8'd31,  8'd45,
+	8'd66,  8'd80,  8'd96,  8'd111,
+	8'd144, 8'd158, 8'd175, 8'd190,
+	8'd210, 8'd225, 8'd241, 8'd255
+};
+wire [7:0] r = tp84_color[r_out];
+wire [7:0] g = tp84_color[g_out];
+wire [7:0] b = tp84_color[b_out];
 
 wire ce_pix;
 
 wire rotate_ccw = 0;
 wire no_rotate = status[12] | direct_video;
-wire flip = ~no_rotate;
+wire flip = video_rotated;
+wire video_rotated;
 screen_rotate screen_rotate(.*);
 
-arcade_video #(256,12) arcade_video
+arcade_video #(256, 24) arcade_video
 (
 	.*,
 
@@ -504,9 +518,9 @@ TimePilot84 TP84_inst
 	.video_hblank(hblank),                                 // output video_hblank
 	.ce_pix(ce_pix),                                       // output ce_pix
 	
-	.video_r(r),                                           // output [3:0] video_r
-	.video_g(g),                                           // output [3:0] video_g
-	.video_b(b),                                           // output [3:0] video_b
+	.video_r(r_out),                                       // output [3:0] video_r
+	.video_g(g_out),                                       // output [3:0] video_g
+	.video_b(b_out),                                       // output [3:0] video_b
 	
 	.sound(audio),                                         // output [15:0] sound
 	
