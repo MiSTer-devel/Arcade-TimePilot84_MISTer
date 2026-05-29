@@ -65,6 +65,7 @@ module TimePilot84_CPU
 	input         ioctl_wr,
 
 	input         pause,
+	input         vertical_flip,
 
 	input  [15:0] hs_address,
 	input   [7:0] hs_data_in,
@@ -72,6 +73,12 @@ module TimePilot84_CPU
 	input         hs_write,
 	input         hs_access
 );
+
+function automatic [7:0] map_code(input [7:0] c, input logic flip_180);
+  begin
+    map_code = c;
+  end
+endfunction
 
 //------------------------------------------------------- Signal outputs -------------------------------------------------------//
 
@@ -437,11 +444,18 @@ always_ff @(posedge clk_49m) begin
 		h1d <= h_cnt[0];
 end
 
+wire flip_180	= vertical_flip;
+wire vflip_eff = vflip ^ flip_180;
+wire hflip_eff = hflip ^ flip_180;
+wire [7:0] sprite_x = spriteram_D[15:8];
+wire [7:0] sprite_x_eff = flip_180 ? ~sprite_x : sprite_x;
+
 //XOR horizontal counter bits [7:2] with HFLIP flag
-wire [7:2] hcnt_x = h_cnt[7:2] ^ {6{hflip}};
+wire [7:2] hcnt_x = h_cnt[7:2] ^ {6{hflip_eff}};
 
 //XOR latched vertical counter bits with VFLIP flag
-wire [7:0] vcnt_x = vcnt_lat ^ {8{vflip}};
+wire [7:0] vcnt_x = vcnt_lat ^ {8{vflip_eff}};
+wire [7:0] vcnt_k503 = (flip_180 && is_ship) ? (vcnt_x ^ 8'h80) : vcnt_x;
 
 //--------------------------------------------------------- Tile layer ---------------------------------------------------------//
 
@@ -511,7 +525,7 @@ always_ff @(posedge clk_49m) begin
 end
 
 //Latch tile color information and flip signal for tilemap 083 custom chip every 4 pixels
-wire tile_flip = tile_hflip ^ ~hflip;
+wire tile_flip = tile_hflip ^ ~hflip_eff;
 reg tile_083_flip = 0;
 reg [3:0] tile_color = 4'd0;
 always_ff @(posedge clk_49m) begin
@@ -693,11 +707,14 @@ spram #(4, 10) u8C
 //Konami 503 custom chip - generates sprite addresses for lower half of sprite ROMs, sprite line buffer control, enable for
 //sprite write and sprite flip for 083 custom chip.
 wire cs_linebuffer, sprite_flip, n_cara, n_ocoll;
+wire [5:0] sprite_row;
+wire is_ship = (spriteram_D[15:8] <= 8'h10);
+wire [7:0] k503_ob_eff = (flip_180 && is_ship) ? { ~spriteram_D[7], spriteram_D[6], spriteram_D[5:0] } : spriteram_D[7:0];
 k503 u11A
 (
 	.CLK(clk_49m),
-	.OB(spriteram_D[7:0]),
-	.VCNT(vcnt_lat),
+	.OB(k503_ob_eff),
+	.VCNT(vcnt_k503),
 	.H4(h_cnt[2]),
 	.H8(h_cnt[3]),
 	.LD(h_cnt[1:0] != 2'b11),
@@ -705,7 +722,7 @@ k503 u11A
 	.OFLP(sprite_flip),
 	.ODAT(n_cara),
 	.OCOL(n_ocoll),
-	.R(spriterom_A[5:0])
+	.R(sprite_row)
 );
 
 //Latch sprite code from sprite RAM bank 1 every 8 pixels
@@ -719,8 +736,12 @@ always_ff @(posedge clk_49m) begin
 	end
 end
 
+wire [7:0] sprite_code_eff = map_code(sprite_code, flip_180);
+
 //Assign sprite code to address the upper 7 bits of the sprite ROMs
-assign spriterom_A[12:6] = sprite_code[6:0];
+assign spriterom_A[12:6] = sprite_code_eff[6:0];
+wire [5:0] sprite_row_eff = flip_180 ? { sprite_row[5], ~sprite_row[4:3], sprite_row[2:0] } : sprite_row;
+assign spriterom_A[5:0] = sprite_row_eff;
 
 //Sprite ROMs
 wire [12:0] spriterom_A;
@@ -778,7 +799,7 @@ eprom_12 u15A
 );
 
 //Multiplex sprite ROM data outputs based on the state of the most significant bit of the sprite code
-wire spriterom_sel = sprite_code[7];
+wire spriterom_sel = sprite_code_eff[7];
 wire [15:0] spriterom_D = spriterom_sel ? {eprom12_D, eprom10_D} : {eprom11_D, eprom9_D};
 
 //Konami 083 custom chip 2/2 - shifts the pixel data from sprite ROMs
@@ -796,8 +817,8 @@ k083 u16A
 
 //Latch sprite color information, enable for sprite line buffer, XORed SHFx signals, sprite flip flag at every
 //12 pixels
-wire shf0_flip = (shf0 ^ ~hflip);
-wire shf1_flip = (shf1 ^ ~hflip);
+wire shf0_flip = (shf0 ^ ~hflip_eff);
+wire shf1_flip = (shf1 ^ ~hflip_eff);
 reg [3:0] sprite_color = 4'd0;
 reg shf0_l, shf1_l, sprite_lbuff_en, sprite_k083_flip;
 always_ff @(posedge clk_49m) begin
@@ -807,7 +828,7 @@ always_ff @(posedge clk_49m) begin
 			shf0_l <= shf0_flip;
 			shf1_l <= shf1_flip;
 			sprite_lbuff_en <= cs_linebuffer;
-			sprite_k083_flip <= sprite_flip;
+			sprite_k083_flip <= sprite_flip ^ (flip_180 & ~hflip);
 		end
 		else begin
 			sprite_color <= sprite_color;
@@ -907,7 +928,7 @@ always_ff @(posedge clk_49m) begin
 			linebuffer0_l <= 4'd0;
 		else
 			if(sprite_lbuff0_ld)
-				linebuffer0_l <= spriteram_D[11:8];
+				linebuffer0_l <= sprite_x_eff[3:0];
 			else
 				linebuffer0_l <= linebuffer0_l + 4'd1;
 	end
@@ -920,7 +941,7 @@ always_ff @(posedge clk_49m) begin
 			linebuffer0_h <= 4'd0;
 		else
 			if(sprite_lbuff0_ld)
-				linebuffer0_h <= spriteram_D[15:12];
+				linebuffer0_h <= sprite_x_eff[7:4];
 			else if(linebuffer0_l == 4'hF)
 				linebuffer0_h <= linebuffer0_h + 4'd1;
 	end
@@ -934,7 +955,7 @@ always_ff @(posedge clk_49m) begin
 			linebuffer1_l <= 4'd0;
 		else
 			if(sprite_lbuff1_ld)
-				linebuffer1_l <= spriteram_D[11:8];
+				linebuffer1_l <= sprite_x_eff[3:0];
 			else
 				linebuffer1_l <= linebuffer1_l + 4'd1;
 	end
@@ -947,7 +968,7 @@ always_ff @(posedge clk_49m) begin
 			linebuffer1_h <= 4'd0;
 		else
 			if(sprite_lbuff1_ld)
-				linebuffer1_h <= spriteram_D[15:12];
+				linebuffer1_h <= sprite_x_eff[7:4];
 			else if(linebuffer1_l == 4'hF)
 				linebuffer1_h <= linebuffer1_h + 4'd1;
 	end

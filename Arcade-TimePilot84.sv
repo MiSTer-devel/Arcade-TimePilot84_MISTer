@@ -222,6 +222,7 @@ localparam CONF_STR = {
 	"A.TP84;;",
 	"ODE,Aspect Ratio,Original,Full screen,[ARC1],[ARC2];",
 	"OC,Orientation,Vert,Horz;",
+	"OB,Screen Flip,Off,On;",
 	"OFH,Scandoubler Fx,None,HQ2x,CRT 25%,CRT 50%,CRT 75%;",
 	"OL,Game Speed,Native,60Hz Adjust;",
 	"-;",
@@ -536,6 +537,7 @@ TimePilot84 TP84_inst
 	.ioctl_data(ioctl_dout),
 	
 	.pause(~pause_cpu),
+	.vertical_flip(status[11]),
 	
 	//Flag to signal that Time Pilot '84 has been underclocked to normalize video timings in order to maintain consistent sound timings and pitch
 	.underclock(status[21]),
