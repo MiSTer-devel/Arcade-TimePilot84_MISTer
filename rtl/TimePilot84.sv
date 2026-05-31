@@ -51,6 +51,7 @@ module TimePilot84
 	input                ioctl_wr,
 
 	input                pause,
+	input                vertical_flip,
 	
 	//This input serves to select different fractional dividers to acheive 3.579545MHz for the Z80 and 1.789772MHz for the
 	//SN76489s depending on whether Time Pilot '84 runs with original or underclocked timings to normalize sync frequencies
@@ -144,6 +145,7 @@ TimePilot84_CPU main_pcb
 	.ioctl_wr(ioctl_wr),
 	.ioctl_data(ioctl_data),
 	.pause(pause),
+	.vertical_flip(vertical_flip),
 	.hs_address(hs_address),
 	.hs_data_in(hs_data_in),
 	.hs_data_out(hs_data_out),
